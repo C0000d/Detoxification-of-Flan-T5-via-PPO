@@ -99,7 +99,6 @@ mean_before, std_before = evaluate_toxicity(model=ref_model,
                                           toxicity_evaluator=toxicity_evaluator,
                                           tokenizer=tokenizer,
                                           dataset=dataset,
-                                          pipeline=sentiment_pipe,
                                           num_samples=10)
 print(f"toxicity [mean, std] before detox: [{mean_before}, {std_before}]")
 
@@ -107,7 +106,6 @@ mean_after, std_after = evaluate_toxicity(model=ppo_model,
                                           toxicity_evaluator=toxicity_evaluator,
                                           tokenizer=tokenizer,
                                           dataset=dataset,
-                                          pipeline=sentiment_pipe,
                                           num_samples=10)
 print(f"toxicity [mean, std] after detox: [{mean_after}, {std_after}]")
 
