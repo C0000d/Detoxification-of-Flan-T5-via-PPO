@@ -34,7 +34,6 @@ from data_preparation import (
 # constants
 # ---------------------------------------------------------------------------
 TOXICITY_MODEL_NAME = "facebook/roberta-hate-speech-dynabench-r4-target"
-NOT_HATE_INDEX = 0  # index 0 out of [not hate, hate], to get the logits for the not hate
 CKPT_DIR = Path("checkpoints")
 CKPT_DIR.mkdir(exist_ok=True)
 REF_MODEL_DIR = Path("checkpoints/ref_model")
@@ -76,14 +75,13 @@ def build_toxicity_pipeline():
     toxicity_model = AutoModelForSequenceClassification.from_pretrained(
         TOXICITY_MODEL_NAME,
         torch_dtype=torch.bfloat16,
-        # device_map="auto"
     )
     return pipeline(
         "sentiment-analysis",
         model=toxicity_model,
         tokenizer=toxicity_tokenizer,
         device_map="auto",
-        function_to_apply="softmax",
+        function_to_apply="none",
         top_k=None,
         batch_size=16,
     )
@@ -94,13 +92,13 @@ def save_ckpt(tag: str, ppo_model, tokenizer, stats=None):
     out_dir = CKPT_DIR / tag
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # 1. Trainable weights (LoRA + value head)
+    # Trainable weights (LoRA + value head)
     ppo_model.save_pretrained(out_dir)
 
-    # 2. Tokenizer (once is fine; overwrite = cheap)
+    # Tokenizer (once is fine; overwrite = cheap)
     tokenizer.save_pretrained(out_dir)
 
-    # 3. Run metadata — whatever you find useful
+    # Run metadata
     if stats:
         meta = {
             "step": tag,
@@ -124,8 +122,7 @@ dataset = load_from_disk(DATASET_DIR)["train"]
 # we load a fine-tuned peft checkpoint(peft adapter's weight) from AWS and fit it to the base model
 tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
 model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME,
-                                              torch_dtype=torch.bfloat16,
-                                              )
+                                              torch_dtype=torch.bfloat16)
 
 lora_config = LoraConfig(
     r=32,
@@ -176,13 +173,6 @@ percentage of trainable model parameters:  0.00%
 # we'll directly use the Meta's RoBERTa-based hate speech model here
 # it will provide the score by 2 labels: nothate(0), hate(1)
 sentiment_pipe = build_toxicity_pipeline() # an inference tool — you pass it a list of texts, it'll run the model
-
-# set up the toxicity evaluation metric
-# toxicity score range: 0~1, larger the number, higher the toxicity
-toxicity_evaluator = evaluate.load("toxicity",
-                                   TOXICITY_MODEL_NAME,
-                                   module_type="measurement",  # one number per input
-                                   toxic_label="hate") # tell the toxicity module the label name inside the model corresponds to toxic
 
 # ---------------------------------------------------------------------------
 # 3. Perform Detoxification Fine-Tuning
@@ -248,7 +238,7 @@ def main():
         # compute reward outputs
         query_response_pairs = [q+r for q, r in zip(batch["query"], batch["response"])]
         rewards = sentiment_pipe(query_response_pairs)
-        p_hate_list = [1.0 - next(d["score"] for d in reward if d["label"] == "nothate") for reward in rewards]
+        p_hate_list = [next(d["score"] for d in reward if d["label"] == "nothate") for reward in rewards]  # extract the raw logits of nothate as the reward
         reward_tensors = [torch.tensor(p) for p in p_hate_list] # reward: {"label": "nothate"/"hate", "score": ...}
 
         # reward

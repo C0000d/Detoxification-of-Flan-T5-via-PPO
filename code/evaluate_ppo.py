@@ -15,12 +15,12 @@ from data_preparation import (
 from training_ppo import (
     CKPT_DIR,
     TOXICITY_MODEL_NAME,
-    NOT_HATE_INDEX,
     REF_MODEL_DIR,
     output_length_sampler,
     build_toxicity_pipeline,
 )
 
+NOT_HATE_INDEX = 0
 # ---------------------------------------------------------------------------
 # Helper functions
 # ---------------------------------------------------------------------------
@@ -28,7 +28,6 @@ def evaluate_toxicity(model,
                       toxicity_evaluator,
                       tokenizer,
                       dataset,
-                      pipeline,
                       num_samples):
     """
     Evaluate the toxicity score on the dataset.
@@ -56,18 +55,17 @@ def evaluate_toxicity(model,
         response = model.generate(input_ids=input_ids, generation_config=generation_config)
         response_text = tokenizer.decode(response[0], skip_special_tokens=True)
 
-        predictions = pipeline([input_text + " " + response_text])[0]  # list-of-dict
-        p_toxic = next(d["score"] for d in predictions if d["label"] == "nothate")
-        toxicities.append(1.0 - p_toxic)
-
-        # toxicity_score = toxicity_evaluator.compute(predictions=[(input_text + " " + response_text)])
-        # toxicities.extend(toxicity_score["toxicity"])
+        toxicity_score = toxicity_evaluator.compute(predictions=[(input_text + " " + response_text)])
+        toxicities.extend(toxicity_score["toxicity"])
 
     # compute the mean and std respectively
     mean = np.mean(toxicities)
     std = np.std(toxicities)
     return mean, std
 
+# ---------------------------------------------------------------------------
+# Evaluation
+# ---------------------------------------------------------------------------
 # load test dataset
 dataset = load_from_disk(DATASET_DIR)["test"]
 
@@ -76,7 +74,7 @@ toxicity_evaluator = evaluate.load(
     "toxicity",
     TOXICITY_MODEL_NAME,
     module_type="measurement",
-    toxic_label="hate"
+    toxic_label="hate"  # tell the evaluator the label of toxicity, since it has 2 cases: hate/nothate, offensive/not offensive
 )
 
 # load ref_model
@@ -119,7 +117,7 @@ print(f"Percentage improvement of toxicity score after detoxification:")
 print(f"mean: {mean_improvement * 100:.2f}")
 print(f"std: {std_improvement * 100:.2f}")
 
-# 3.d Evaluate the model qualitively
+# Evaluate the model qualitively
 # inspect some samples from the test split, compare the result against the ref model
 batch_size = 20
 compare_results = {}
