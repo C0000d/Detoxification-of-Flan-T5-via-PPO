@@ -45,7 +45,7 @@ PPO fine-tuning involves four key components:
 1. **Memory Bottlenecks on macOS (MPS backend)**  
    - PPO requires multiple models in memory → frequent crashes.  
    - Fix: split into three scripts:  
-     - `data_preparation` (data loading & transformation)
+     - `data_preparation.py` (data loading & transformation)
      - `training_ppo.py` (training)  
      - `evaluate_ppo.py` (evaluation)  
 
@@ -67,12 +67,12 @@ PPO fine-tuning involves four key components:
 
 ## Results  
 
-Toxicity scores before vs after PPO detoxification:  
+Toxicity scores(the lower the better) before vs after PPO detoxification:  
 
-| Metric      | Before | After  | Improvement |
+| Metric      | Before | After  | Deduction |
 |-------------|--------|--------|-------------|
-| Mean        | 0.0336 | 0.0216 | **-35.5%**  |
-| Std         | 0.0447 | 0.0288 | **-35.6%**  |
+| Mean        | 0.0336 | 0.0216 | **35.5%**  |
+| Std         | 0.0447 | 0.0288 | **35.6%**  |
 
 ---
 
